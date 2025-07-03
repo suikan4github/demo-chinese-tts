@@ -1,4 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- インターネット接続権限（TTS音声データのダウンロード用） -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 音声録音権限（一部のTTSエンジンで必要） -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    
     <application
         android:label="demo_chinese_tts"
         android:name="${applicationName}"
