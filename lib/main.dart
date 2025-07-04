@@ -12,12 +12,12 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Demo Chinese TTS',
+      title: '中国語TTS・ピンイン学習',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
       ),
-      home: const MyHomePage(title: 'Chinese Text-to-Speech Demo'),
+      home: const MyHomePage(title: '中国語TTS・ピンイン学習'),
     );
   }
 }
@@ -39,19 +39,57 @@ class _MyHomePageState extends State<MyHomePage> {
   double _speechRate = 0.5;
   double _pitch = 1.0;
   String _pinyinText = "";
-  bool _showPinyin = false;
 
   final Map<String, String> _languages = {
     "zh-CN": "中国語（簡体字）",
     "zh-TW": "中国語（繁体字）",
-    "ja-JP": "日本語",
-    "en-US": "英語",
   };
 
   @override
   void initState() {
     super.initState();
     _initTts();
+    
+    // テキスト入力の変更を監視してリアルタイムでピンイン変換
+    _textController.addListener(_onTextChanged);
+  }
+
+  // ピンインが実際の内容かプレースホルダーメッセージかを判定
+  bool _isPinyinContent() {
+    if (_pinyinText.isEmpty) return false;
+    
+    // プレースホルダーメッセージかどうかをチェック
+    const placeholderMessages = [
+      "中国語テキストを入力するとピンインが表示されます",
+      "中国語文字が含まれていません",
+    ];
+    
+    return !placeholderMessages.contains(_pinyinText);
+  }
+
+  void _onTextChanged() {
+    final text = _textController.text.trim();
+    if (text.isNotEmpty) {
+      // 中国語文字が含まれているかチェック
+      if (RegExp(r'[\u4e00-\u9fff]').hasMatch(text)) {
+        final pinyin = PinyinHelper.getPinyinE(
+          text,
+          separator: ' ',
+          format: PinyinFormat.WITH_TONE_MARK,
+        );
+        setState(() {
+          _pinyinText = pinyin;
+        });
+      } else {
+        setState(() {
+          _pinyinText = "中国語文字が含まれていません";
+        });
+      }
+    } else {
+      setState(() {
+        _pinyinText = "中国語テキストを入力するとピンインが表示されます";
+      });
+    }
   }
 
   void _initTts() async {
@@ -84,6 +122,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   void dispose() {
+    _textController.removeListener(_onTextChanged);
     _textController.dispose();
     _flutterTts.stop();
     super.dispose();
@@ -113,36 +152,6 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
-  void _convertToPinyin() {
-    final text = _textController.text.trim();
-    if (text.isNotEmpty) {
-      // 中国語文字が含まれているかチェック
-      if (RegExp(r'[\u4e00-\u9fff]').hasMatch(text)) {
-        final pinyin = PinyinHelper.getPinyinE(
-          text,
-          separator: ' ',
-          format: PinyinFormat.WITH_TONE_MARK,
-        );
-        setState(() {
-          _pinyinText = pinyin;
-          _showPinyin = true;
-        });
-      } else {
-        setState(() {
-          _pinyinText = "";
-          _showPinyin = false;
-        });
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('中国語文字が検出されませんでした')));
-      }
-    } else {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('テキストを入力してください')));
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -157,33 +166,47 @@ class _MyHomePageState extends State<MyHomePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              const Text(
-                'テキストを入力してください:',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-
-              // 言語選択（コンパクト化）
-              Row(
-                children: [
-                  const Text('言語: ', style: TextStyle(fontSize: 14)),
-                  Expanded(
-                    child: DropdownButton<String>(
-                      value: _selectedLanguage,
-                      onChanged: _changeLanguage,
-                      isExpanded: true,
-                      items: _languages.entries.map((entry) {
-                        return DropdownMenuItem(
-                          value: entry.key,
-                          child: Text(
-                            entry.value,
-                            style: const TextStyle(fontSize: 14),
-                          ),
-                        );
-                      }).toList(),
+              // 言語選択
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.language, color: Colors.indigo, size: 20),
+                    const SizedBox(width: 8),
+                    const Text(
+                      '言語：',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.indigo,
+                      ),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: _selectedLanguage,
+                          onChanged: _changeLanguage,
+                          isExpanded: true,
+                          items: _languages.entries.map((entry) {
+                            return DropdownMenuItem(
+                              value: entry.key,
+                              child: Text(
+                                entry.value,
+                                style: const TextStyle(fontSize: 14),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 15),
 
@@ -200,88 +223,64 @@ class _MyHomePageState extends State<MyHomePage> {
               ),
               const SizedBox(height: 15),
 
-              // ピンイン表示エリア（拡大）
-              if (_showPinyin) ...[
-                Container(
-                  padding: const EdgeInsets.all(16), // パディングを拡大
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
-                    border: Border.all(color: Colors.blue.shade200),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'ピンイン（声調記号付き）:',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blue,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Container(
-                        constraints: const BoxConstraints(
-                          minHeight: 80, // 最小高さを設定して表示エリアを拡大
-                        ),
-                        child: SelectableText(
-                          _pinyinText,
-                          style: const TextStyle(
-                            fontSize: 18, // フォントサイズを拡大
-                            fontFamily: 'monospace',
-                            height: 1.4, // 行間を設定
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+              // ピンイン表示エリア（常時表示）
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  border: Border.all(color: Colors.blue.shade200),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                const SizedBox(height: 15),
-              ],
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'ピンイン（声調記号付き）:',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      constraints: const BoxConstraints(
+                        minHeight: 120, // 3行分に拡大（80 → 120）
+                      ),
+                      child: SelectableText(
+                        _pinyinText,
+                        style: TextStyle(
+                          fontSize: _isPinyinContent() ? 16 : 13, // 文字サイズを小さく（18→16, 14→13）
+                          fontFamily: _isPinyinContent() ? 'monospace' : null,
+                          height: 1.4,
+                          color: _isPinyinContent() ? Colors.black : Colors.grey.shade600, // ピンインは黒、メッセージはグレー
+                          fontStyle: _isPinyinContent() ? FontStyle.normal : FontStyle.italic, // メッセージは斜体
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 15),
 
-              // 音声再生とピンイン変換ボタン（横並び）
-              Row(
-                children: [
-                  // 音声再生ボタン
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: _speak,
-                      icon: Icon(
-                        _isSpeaking ? Icons.stop : Icons.volume_up,
-                        size: 20,
-                      ),
-                      label: Text(
-                        _isSpeaking ? '停止' : '音声再生',
-                        style: const TextStyle(fontSize: 14),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 12,
-                          horizontal: 16,
-                        ),
-                        backgroundColor: _isSpeaking ? Colors.red : null,
-                      ),
-                    ),
+              // 音声再生ボタン
+              ElevatedButton.icon(
+                onPressed: _speak,
+                icon: Icon(
+                  _isSpeaking ? Icons.stop : Icons.volume_up,
+                  size: 20,
+                ),
+                label: Text(
+                  _isSpeaking ? '停止' : '音声再生',
+                  style: const TextStyle(fontSize: 14),
+                ),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 12,
+                    horizontal: 16,
                   ),
-                  const SizedBox(width: 8),
-                  // ピンイン変換ボタン
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: _convertToPinyin,
-                      icon: const Icon(Icons.translate, size: 20),
-                      label: const Text('ピンイン', style: TextStyle(fontSize: 14)),
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 12,
-                          horizontal: 16,
-                        ),
-                        backgroundColor: Colors.green,
-                        foregroundColor: Colors.white,
-                      ),
-                    ),
-                  ),
-                ],
+                  backgroundColor: _isSpeaking ? Colors.red : null,
+                ),
               ),
               const SizedBox(height: 15),
 
